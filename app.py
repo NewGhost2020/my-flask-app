@@ -1,14 +1,19 @@
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 import pandas as pd
 import xml.etree.ElementTree as ET
 import os
+
+from database import init_db
+from parser import run_parser
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'xml_output'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+init_db()
 
 @app.route('/')
 def index():
@@ -128,13 +133,47 @@ def upload():
 
         # Сохраняем как XML
         tree = ET.ElementTree(yml)
-        tree.write("xml\output\output.xml", encoding="utf-8", xml_declaration=True)
+        tree.write(r"xml\output\output.xml", encoding="utf-8", xml_declaration=True)
         # ------------------------------------------------------
 
         return render_template('index.html', message='Файл успешно преобразован в XML')
 
     except Exception as e:
         return render_template('index.html', message=f"Ошибка: {str(e)}")
+
+
+@app.route('/run-parser', methods=['POST'])
+def run_parser_route():
+    try:
+        data = request.get_json() or {}
+        url = data.get('url')
+        use_selenium = data.get('use_selenium', False)
+        store_name = data.get('store_name', 'BigDaBach')
+        
+        stats = run_parser(
+            url=url,
+            use_selenium=use_selenium,
+            store_name=store_name
+        )
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'items_parsed': stats['items_parsed'],
+                'items_saved': stats['items_saved'],
+                'items_updated': stats['items_updated'],
+                'errors': stats['errors'],
+                'duration': stats['duration']
+            },
+            'message': f"Successfully parsed {stats['items_parsed']} products"
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': f"Parser failed: {str(e)}"
+        }), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
