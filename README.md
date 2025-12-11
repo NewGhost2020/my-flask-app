@@ -1,198 +1,277 @@
 # Product Parser and Promotion Tracker
 
-A Flask web application for converting Excel product lists into YML-compatible XML feeds and scraping promotional products from Israeli retail sites.
+Система для парсинга акций с израильских ритейл-сайтов и конвертации Excel-файлов в YML XML формат.
 
-## Features
+## Основные возможности
 
-### 1. Excel to XML Conversion
-- Upload Excel files with product lists
-- Automatic conversion to YML-compatible XML format
-- Support for multiple product attributes (name, price, images, descriptions, etc.)
+### 1. Парсинг акций
+- **База данных**: SQLAlchemy модели для магазинов, товаров, акций и истории цен
+- **Веб-парсер**: Скрапинг промо-товаров с израильских сайтов
+- **Отслеживание цен**: История изменения цен для анализа трендов
+- **Дедупликация**: Умная обработка существующих товаров
 
-### 2. Promotion Scraping System
-- **Database Layer**: SQLAlchemy models for stores, products, promotions, and price history
-- **Web Parser**: Scrape promotional products from Israeli retail sites
-- **Price Tracking**: Historical price data for trend analysis
-- **Duplicate Detection**: Smart handling of existing products
+### 2. Конвертация Excel → XML
+- Загрузка Excel файлов со списками товаров
+- Автоматическая конвертация в YML-совместимый XML формат
+- Поддержка множества атрибутов товаров
 
-## Database Schema
+### 3. Интеграция с Telegram ботом
+- Простой API для интеграции с любым Telegram ботом
+- Готовые функции для всех операций
+- Примеры для python-telegram-bot и aiogram
+
+## Схема базы данных
 
 ### Store
-- `id`: Primary key
-- `name`: Store name (unique)
-- `url`: Store website URL
-- `last_parsed_at`: Last successful parse timestamp
-- `created_at`: Creation timestamp
+- `id`: Первичный ключ
+- `name`: Имя магазина (уникальное)
+- `url`: URL магазина
+- `last_parsed_at`: Время последнего парсинга
+- `created_at`: Время создания
 
 ### Product
-- `id`: Primary key
-- `name`: Product name
-- `store_id`: Foreign key to Store
-- `url`: Product URL
-- `image_url`: Product image URL
-- `original_price`: Original/regular price
-- `current_price`: Current price
-- `is_on_sale`: Sale status flag
-- `description`: Product description
-- `category`: Product category
-- `created_at`: Creation timestamp
-- `updated_at`: Last update timestamp
+- `id`: Первичный ключ
+- `name`: Название товара
+- `store_id`: Внешний ключ на Store
+- `url`: URL товара
+- `image_url`: URL изображения
+- `original_price`: Оригинальная цена
+- `current_price`: Текущая цена
+- `is_on_sale`: Флаг акции
+- `description`: Описание
+- `category`: Категория
+- `created_at`: Время создания
+- `updated_at`: Время обновления
 
 ### Promotion
-- `id`: Primary key
-- `product_id`: Foreign key to Product
-- `discount_percentage`: Discount percentage
-- `sale_start`: Sale start date
-- `sale_end`: Sale end date
-- `created_at`: Creation timestamp
+- `id`: Первичный ключ
+- `product_id`: Внешний ключ на Product
+- `discount_percentage`: Процент скидки
+- `sale_start`: Начало акции
+- `sale_end`: Конец акции
+- `created_at`: Время создания
 
 ### PriceHistory
-- `id`: Primary key
-- `product_id`: Foreign key to Product
-- `price`: Price at this point in time
-- `timestamp`: Recording timestamp
+- `id`: Первичный ключ
+- `product_id`: Внешний ключ на Product
+- `price`: Цена на момент времени
+- `timestamp`: Временная метка
 
-## Installation
+## Установка
 
-1. Install dependencies:
+1. Установите зависимости:
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Initialize the database:
+2. Инициализируйте базу данных:
 ```bash
 python cli.py --init-db
 ```
 
-## Usage
+## Использование
 
-### Running the Web Application
-```bash
-python app.py
+### Из Telegram бота (рекомендуется)
+
+См. `TELEGRAM_BOT_INTEGRATION.md` для подробных примеров.
+
+```python
+from bot_api import initialize_system, parse_store, get_promotions
+
+# Инициализация
+initialize_system()
+
+# Парсинг магазина
+result = parse_store()
+
+# Получение акций
+promotions = get_promotions(limit=10)
 ```
 
-Then navigate to `http://localhost:5000` to upload Excel files for XML conversion.
+### Командная строка
 
-### Running the Parser
+Запуск демо:
+```bash
+python demo.py
+```
 
-#### Basic usage (requests-based, faster):
+Парсинг bigdabach.co.il (метод requests):
 ```bash
 python cli.py
 ```
 
-#### With Selenium (for dynamic content):
+Парсинг с Selenium (для динамического контента):
 ```bash
 python cli.py --selenium
 ```
 
-#### Parse a specific URL:
+Парсинг конкретного URL:
 ```bash
 python cli.py --url https://bigdabach.co.il/promotions
 ```
 
-#### Custom store name:
-```bash
-python cli.py --store "My Store" --url https://example.com
-```
-
-#### Initialize database and run parser:
-```bash
-python cli.py --init-db
-```
-
-### Programmatic Usage
+### Программное использование
 
 ```python
 from database import init_db
 from parser import run_parser
 
-# Initialize database
+# Инициализация БД
 init_db()
 
-# Run parser
+# Запуск парсера
 stats = run_parser(
     url='https://bigdabach.co.il',
     use_selenium=False,
     store_name='BigDaBach'
 )
 
-print(f"Parsed {stats['items_parsed']} items")
-print(f"Saved {stats['items_saved']} new products")
-print(f"Updated {stats['items_updated']} existing products")
+print(f"Распарсено {stats['items_parsed']} товаров")
+print(f"Сохранено {stats['items_saved']} новых товаров")
+print(f"Обновлено {stats['items_updated']} товаров")
 ```
 
-## Parser Features
+### Конвертация Excel
 
-- **Multi-method parsing**: Supports both requests and Selenium for different site types
-- **Hebrew text support**: Proper UTF-8 encoding for Hebrew content
-- **User-agent rotation**: Avoids detection with rotating user agents
-- **Error handling**: Comprehensive logging and error recovery
-- **Duplicate detection**: Identifies existing products by store and URL
-- **Price tracking**: Automatically records price changes
-- **Promotion detection**: Identifies sale items and calculates discounts
+```python
+from excel_converter import convert_excel_to_yml_xml
 
-## Parser Execution Results
+result = convert_excel_to_yml_xml(
+    'products.xlsx',
+    output_path='output.xml'
+)
 
-The parser returns a statistics dictionary:
-- `items_parsed`: Total number of products found on the page
-- `items_saved`: Number of new products added to database
-- `items_updated`: Number of existing products updated
-- `errors`: Number of errors encountered
-- `start_time`: Parse start timestamp
-- `end_time`: Parse end timestamp
-- `duration`: Total execution time in seconds
+print(f"Конвертировано {result['products_count']} товаров")
+```
 
-## Configuration
+Или из командной строки:
+```bash
+python excel_converter.py input.xlsx output.xml
+```
 
-### Database
-Set the `DATABASE_URL` environment variable to use a different database:
+## Возможности парсера
+
+- **Два метода парсинга**: requests (быстро) и Selenium (динамический контент)
+- **Поддержка иврита**: Правильная UTF-8 кодировка
+- **Ротация User-Agent**: Избежание блокировок
+- **Обработка ошибок**: Логирование и восстановление после ошибок
+- **Дедупликация**: Определение существующих товаров по store и URL
+- **Отслеживание цен**: Автоматическая запись изменений цен
+- **Определение акций**: Множество стратегий для поиска промо
+
+## Результаты парсинга
+
+Парсер возвращает статистику:
+- `items_parsed`: Всего найдено товаров на странице
+- `items_saved`: Добавлено новых товаров в БД
+- `items_updated`: Обновлено существующих товаров
+- `errors`: Количество ошибок
+- `start_time`: Время начала
+- `end_time`: Время окончания
+- `duration`: Длительность в секундах
+
+## Конфигурация
+
+### База данных
+Установите переменную окружения `DATABASE_URL`:
 ```bash
 export DATABASE_URL=postgresql://user:pass@localhost/dbname
 ```
 
-Default: `sqlite:///promotions.db`
+По умолчанию: `sqlite:///promotions.db`
 
-## Project Structure
+## Структура проекта
 
 ```
 .
-├── app.py              # Flask web application
-├── models.py           # SQLAlchemy database models
-├── database.py         # Database initialization and session management
-├── parser.py           # Web scraping logic
-├── cli.py              # Command-line interface
-├── requirements.txt    # Python dependencies
-├── templates/          # HTML templates
-│   └── index.html
-├── static/             # Static files (CSS, JS)
-│   └── styles.css
-└── uploads/            # Uploaded Excel files (gitignored)
+├── bot_api.py              # API для Telegram бота
+├── models.py               # SQLAlchemy модели БД
+├── database.py             # Управление БД и сессиями
+├── parser.py               # Логика веб-скрапинга
+├── excel_converter.py      # Конвертер Excel → XML
+├── cli.py                  # Интерфейс командной строки
+├── demo.py                 # Демонстрация возможностей
+├── test_models.py          # Тесты моделей
+├── requirements.txt        # Python зависимости
+├── templates/              # HTML шаблоны (не используются в bot режиме)
+└── static/                 # Статические файлы (не используются в bot режиме)
 ```
 
-## Supported Sites
+## Поддерживаемые сайты
 
-Currently supports:
-- **bigdabach.co.il**: Israeli retail site with promotional products
+Сейчас поддерживается:
+- **bigdabach.co.il**: Израильский ритейл-сайт с акциями
 
-The parser is designed to be extensible for additional sites.
+Парсер спроектирован расширяемым для добавления новых сайтов.
 
-## Development
+## Тестирование
 
-### Adding Support for New Sites
-
-1. Create a new parser class inheriting from or similar to `BigDaBachParser`
-2. Implement site-specific parsing logic
-3. Add to CLI options if needed
-
-### Database Migrations
-
-If using Alembic for migrations:
+Тест моделей БД:
 ```bash
-alembic init alembic
-alembic revision --autogenerate -m "Initial migration"
-alembic upgrade head
+python test_models.py
 ```
 
-## License
+Демонстрация с примерами данных:
+```bash
+python demo.py
+```
+
+Просмотр БД:
+```bash
+sqlite3 promotions.db
+sqlite> .tables
+sqlite> SELECT * FROM products WHERE is_on_sale = 1;
+```
+
+## API для бота
+
+См. `TELEGRAM_BOT_INTEGRATION.md` для:
+- Полной документации API
+- Примеров интеграции
+- Готовых команд для бота
+- Примеров с python-telegram-bot и aiogram
+
+## Основные функции API
+
+```python
+from bot_api import (
+    initialize_system,      # Инициализация БД
+    parse_store,            # Парсинг магазина
+    get_promotions,         # Получение акций
+    search_products,        # Поиск товаров
+    get_product_by_id,      # Детали товара
+    get_statistics,         # Статистика
+    convert_excel,          # Конвертация Excel
+    format_promotion_message # Форматирование для Telegram
+)
+```
+
+## Рекомендации
+
+1. **ChromeDriver**: Для Selenium установите ChromeDriver
+2. **Rate Limiting**: Парсер использует задержки и ротацию UA
+3. **База данных**: SQLite для разработки, PostgreSQL для продакшена
+4. **Текст на иврите**: Вся обработка текста использует UTF-8
+5. **Расширяемость**: Парсер легко адаптируется под другие сайты
+
+## Следующие шаги
+
+1. ✅ Проверьте установку: `python demo.py`
+2. ✅ Запустите тестовый парсинг: `python cli.py`
+3. ✅ Проверьте БД: `sqlite3 promotions.db`
+4. ⏭️ Интегрируйте с Telegram ботом
+5. ⏭️ Настройте периодический парсинг
+6. ⏭️ Добавьте больше ритейл-сайтов
+
+## Будущие улучшения
+
+- Миграции Alembic для изменений схемы
+- Планирование парсинга через cron/Celery
+- Веб-дашборд для просмотра товаров
+- Email/SMS уведомления о конкретных акциях
+- Продвинутая аналитика и определение трендов
+- Конкурентный парсинг нескольких магазинов
+
+## Лицензия
 
 MIT License

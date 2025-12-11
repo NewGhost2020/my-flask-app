@@ -137,8 +137,8 @@ def create_sample_data():
         print("\n📝 What you can do next:")
         print("   1. Run actual parser: python cli.py --init-db")
         print("   2. View database: sqlite3 promotions.db")
-        print("   3. Start Flask app: python app.py")
-        print("   4. Call API: curl -X POST http://localhost:5000/run-parser")
+        print("   3. Test bot API: python bot_api.py")
+        print("   4. See bot integration: TELEGRAM_BOT_INTEGRATION.md")
         
     except Exception as e:
         print(f"\n❌ Error: {str(e)}")
