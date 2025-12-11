@@ -75,11 +75,17 @@ bash deploy.sh
 
 **Хочу интегрировать с ботом:**
 
-➡️ **[TELEGRAM_BOT_INTEGRATION.md](TELEGRAM_BOT_INTEGRATION.md)** - Полное руководство
+➡️ **[AIOGRAM_GUIDE.md](AIOGRAM_GUIDE.md)** - Полное руководство по aiogram ⭐
+
+➡️ **[TELEGRAM_BOT_INTEGRATION.md](TELEGRAM_BOT_INTEGRATION.md)** - Альтернатива (python-telegram-bot)
 
 ➡️ **[BOT_QUICK_REFERENCE.md](BOT_QUICK_REFERENCE.md)** - Быстрая справка по API
 
-**Минимальный код:**
+**Готовые файлы:**
+- **telegram_bot_aiogram.py** - Бот на aiogram 3.x (рекомендуется) ⭐
+- **telegram_bot_ptb.py** - Бот на python-telegram-bot 20.x
+
+**Минимальный код (aiogram):**
 ```python
 from bot_api import initialize_system, get_promotions
 
