@@ -1,0 +1,17 @@
+[Unit]
+Description=Telegram Promo Parser Bot
+After=network.target
+
+[Service]
+Type=simple
+User=ваш_логин_beget
+WorkingDirectory=/home/ваш_логин_beget/projects/promo-parser
+Environment="PATH=/home/ваш_логин_beget/projects/promo-parser/venv/bin"
+ExecStart=/home/ваш_логин_beget/projects/promo-parser/venv/bin/python telegram_bot.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/home/ваш_логин_beget/projects/promo-parser/bot.log
+StandardError=append:/home/ваш_логин_beget/projects/promo-parser/bot_error.log
+
+[Install]
+WantedBy=multi-user.target
