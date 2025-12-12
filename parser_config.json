@@ -1,0 +1,21 @@
+{
+  "target_url": "https://www.bigdabach.co.il/",
+  "store_name": "Dabach",
+  "max_attempts": 5,
+  "initial_delay": 2.0,
+  "max_delay": 60.0,
+  "backoff_factor": 2.0,
+  "request_timeout": 30,
+  "user_agent_rotation": true,
+  "respect_robots_txt": true,
+  "use_enhanced_headers": true,
+  "use_proxy_rotation": false,
+  "use_mock_data_fallback": true,
+  "database_url": "sqlite:///promotions.db",
+  "duplicate_checking": true,
+  "log_level": "INFO",
+  "log_to_file": true,
+  "log_file": "promotion_parser.log",
+  "mock_data_enabled": true,
+  "mock_items_count": 5
+}
