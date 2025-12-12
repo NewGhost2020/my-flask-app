@@ -71,16 +71,150 @@ class PromotionParser:
             logger.error(f"Database initialization failed: {e}")
             raise
     
-    def get_random_headers(self) -> Dict[str, str]:
-        """Get random headers with user-agent rotation"""
-        return {
-            'User-Agent': random.choice(self.user_agents),
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
+    def get_enhanced_headers(self) -> Dict[str, str]:
+        """Get enhanced headers to bypass Cloudflare detection"""
+        user_agent = random.choice(self.user_agents)
+        
+        # More comprehensive headers to mimic real browser
+        headers = {
+            'User-Agent': user_agent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
             'Upgrade-Insecure-Requests': '1',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Sec-CH-UA': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'Sec-CH-UA-Arch': '"x86"',
+            'Sec-CH-UA-Bitness': '"64"',
+            'Sec-CH-UA-Full-Version': '"120.0.6099.216"',
+            'Sec-CH-UA-Full-Version-List': '"Not_A Brand";v="8.0.0.0", "Chromium";v="120.0.6099.216", "Google Chrome";v="120.0.6099.216"',
+            'Sec-CH-UA-Mobile': '?0',
+            'Sec-CH-UA-Model': '""',
+            'Sec-CH-UA-Platform': '"Windows"',
+            'Sec-CH-UA-Platform-Version': '"10.0.0"',
         }
+        
+        # Add platform-specific headers
+        if 'Windows' in user_agent:
+            headers.update({
+                'Sec-CH-Ua-Platform-Version': '"10.0.0"',
+            })
+        elif 'Mac' in user_agent:
+            headers.update({
+                'Sec-CH-Ua-Platform-Version': '"13.0.0"',
+            })
+        
+        return headers
+
+    def get_random_headers(self) -> Dict[str, str]:
+        """Get random headers with user-agent rotation (legacy method)"""
+        return self.get_enhanced_headers()
+    
+    def check_robots_txt(self, base_url: str) -> bool:
+        """Check if scraping is allowed by robots.txt"""
+        try:
+            from urllib.parse import urljoin
+            robots_url = urljoin(base_url, '/robots.txt')
+            response = requests.get(robots_url, timeout=10)
+            
+            if response.status_code == 200:
+                robots_content = response.text.lower()
+                # Check if our user agent is disallowed
+                user_agent = random.choice(self.user_agents).lower()
+                
+                # Simple robots.txt parsing - look for disallow rules
+                if 'disallow: /' in robots_content and 'user-agent: *' in robots_content:
+                    logger.warning(f"robots.txt disallows all scraping for {base_url}")
+                    return False
+                elif 'disallow:' in robots_content:
+                    logger.info(f"Found robots.txt rules for {base_url}")
+                    return True
+            else:
+                logger.info(f"No robots.txt found at {robots_url}, proceeding...")
+                
+        except Exception as e:
+            logger.warning(f"Could not check robots.txt: {e}")
+        
+        return True
+    
+    def setup_cloudflare_session(self) -> requests.Session:
+        """Set up session with Cloudflare-bypass cookies and headers"""
+        session = requests.Session()
+        
+        # Set enhanced headers
+        session.headers.update(self.get_enhanced_headers())
+        
+        # Add common cookies that browsers typically have
+        cookies = {
+            'cf_use_ob': '0',           # Cloudflare optimization
+            'cookie_consent': 'true',   # Cookie consent
+            'language': 'he',           # Hebrew language
+            'currency': 'ILS',          # Israeli Shekel
+            'timezone': 'Asia/Jerusalem',
+        }
+        
+        # Add some Google Analytics cookies to appear more like a real browser
+        import time
+        current_time = str(int(time.time()))
+        ga_id = f"GA1.2.{random.randint(1000000000, 9999999999)}.{current_time}"
+        
+        cookies.update({
+            '_ga': ga_id,
+            '_gid': f"GA1.2.{random.randint(1000000000, 9999999999)}.{current_time}",
+            '_gat': '1',
+            'AMP_TOKEN': '%',
+        })
+        
+        # Set cookies for the domain
+        for name, value in cookies.items():
+            session.cookies.set(name, value, domain='.bigdabach.co.il')
+        
+        # Configure session for better compatibility
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=10,
+            pool_maxsize=20,
+            max_retries=3,
+            pool_block=False
+        )
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        
+        return session
+    
+    def respectful_delay(self):
+        """Add random delays between requests to be respectful"""
+        import time
+        import random
+        
+        # Random delay between 2-8 seconds
+        delay = random.uniform(2, 8)
+        logger.debug(f"Adding respectful delay: {delay:.2f} seconds")
+        time.sleep(delay)
+    
+    def exponential_backoff(self, attempt: int) -> float:
+        """Calculate exponential backoff delay"""
+        import time
+        import random
+        
+        # Exponential backoff: 2, 4, 8, 16, 32 seconds max
+        delay = min(60, 2 ** attempt)
+        # Add some randomness (±25%)
+        jitter = delay * 0.25 * random.random()
+        final_delay = delay + (jitter if random.random() > 0.5 else -jitter)
+        
+        logger.debug(f"Backoff delay: {final_delay:.2f} seconds for attempt {attempt + 1}")
+        time.sleep(final_delay)
+        return final_delay
     
     def parse_dabach_promotions(self, use_mock: bool = False) -> List[Dict]:
         """
@@ -133,85 +267,140 @@ class PromotionParser:
         try:
             logger.info(f"Starting to parse Dabach promotions from {url}")
             
-            # Enhanced anti-blocking strategies
-            headers = self.get_random_headers()
-            headers.update({
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-                'Sec-Ch-Ua-Mobile': '?0',
-                'Sec-Ch-Ua-Platform': '"Windows"',
-                'Upgrade-Insecure-Requests': '1',
-            })
+            # Check robots.txt compliance
+            if not self.check_robots_txt(url):
+                logger.warning("robots.txt disallows scraping. Aborting to respect site policy.")
+                return []
             
-            # Try multiple attempts with delay
-            max_attempts = 3
+            # Enhanced anti-blocking strategies with improved session management
+            max_attempts = 5  # Increased attempts for better success rate
+            response = None
+            
             for attempt in range(max_attempts):
                 try:
                     logger.info(f"Attempt {attempt + 1}/{max_attempts} to access {url}")
                     
-                    # Add delay between attempts
+                    # Add respectful delay before each attempt
+                    if attempt == 0:
+                        self.respectful_delay()
+                    else:
+                        self.exponential_backoff(attempt - 1)
+                    
+                    # Create enhanced session for this attempt
+                    session = self.setup_cloudflare_session()
+                    
+                    # Try different request strategies
+                    request_params = {
+                        'timeout': 30,
+                        'allow_redirects': True,
+                        'stream': False
+                    }
+                    
+                    # Add specific Cloudflare-related headers
                     if attempt > 0:
-                        import time
-                        time.sleep(2 ** attempt)  # Exponential backoff
+                        # For retry attempts, try different strategies
+                        session.headers.update({
+                            'Referer': 'https://www.google.com/',
+                            'Origin': 'https://www.bigdabach.co.il'
+                        })
                     
-                    session = requests.Session()
-                    session.headers.update(headers)
+                    response = session.get(url, **request_params)
                     
-                    # Set cookies to appear more like a real browser
-                    session.cookies.set('cf_clearance', 'test', domain='.bigdabach.co.il')
-                    session.cookies.set('__cf_bm', 'test', domain='.bigdabach.co.il')
-                    
-                    response = session.get(url, timeout=30, allow_redirects=True)
-                    
+                    # Analyze response for different Cloudflare protection types
                     if response.status_code == 200:
-                        logger.info(f"Successfully accessed {url}")
+                        logger.info(f"Successfully accessed {url} (attempt {attempt + 1})")
                         break
                     elif response.status_code == 403:
+                        cf_headers = {
+                            'cf-ray': response.headers.get('cf-ray', 'unknown'),
+                            'cf-cache-status': response.headers.get('cf-cache-status', 'unknown'),
+                            'cf-2fa-verify': response.headers.get('cf-2fa-verify', 'unknown'),
+                            'server': response.headers.get('server', 'unknown')
+                        }
                         logger.warning(f"Access forbidden (403) - Cloudflare protection detected on attempt {attempt + 1}")
+                        logger.debug(f"Cloudflare headers: {cf_headers}")
+                        
+                        # Different strategies for different CF protection levels
+                        if 'challenge' in response.text.lower():
+                            logger.info("Detected JavaScript challenge - would need browser automation")
+                        elif 'captcha' in response.text.lower():
+                            logger.info("Detected CAPTCHA challenge - would need human verification")
+                        elif 'block' in response.text.lower():
+                            logger.info("Detected IP blocking - would need proxy rotation")
+                        
                         if attempt == max_attempts - 1:
                             logger.error("All attempts failed. Cloudflare protection is blocking access.")
-                            logger.info("Consider using use_mock=True for testing or implement proxy rotation")
+                            logger.info("Consider using use_mock=True for testing or implementing:")
+                            logger.info("  - Proxy rotation")
+                            logger.info("  - Browser automation (Selenium/Playwright)")
+                            logger.info("  - Residential IP addresses")
                             return []
+                    elif response.status_code == 429:
+                        logger.warning(f"Rate limited (429) - Too many requests on attempt {attempt + 1}")
+                        if attempt == max_attempts - 1:
+                            logger.error("Rate limited after all attempts. Site is being very protective.")
+                            return []
+                    elif response.status_code == 503:
+                        logger.warning(f"Service unavailable (503) - Cloudflare protection on attempt {attempt + 1}")
+                        # 503 often means CF challenge page
+                        if attempt < max_attempts - 1:
+                            logger.info("Retrying 503 error with increased delay...")
+                            continue
                     else:
-                        logger.warning(f"Unexpected status code: {response.status_code}")
+                        logger.warning(f"Unexpected status code: {response.status_code} on attempt {attempt + 1}")
                         
+                except requests.exceptions.Timeout:
+                    logger.error(f"Timeout on attempt {attempt + 1}")
+                except requests.exceptions.ConnectionError as e:
+                    logger.error(f"Connection error on attempt {attempt + 1}: {e}")
                 except requests.exceptions.RequestException as e:
                     logger.error(f"Request failed on attempt {attempt + 1}: {e}")
-                    if attempt == max_attempts - 1:
-                        raise
+                except Exception as e:
+                    logger.error(f"Unexpected error on attempt {attempt + 1}: {e}")
+                
+                # For the last attempt, log response details for debugging
+                if attempt == max_attempts - 1 and response:
+                    logger.debug(f"Final response status: {response.status_code}")
+                    logger.debug(f"Final response headers: {dict(response.headers)}")
+                    logger.debug(f"Response content length: {len(response.content)}")
             
-            if response.status_code != 200:
-                logger.error(f"Failed to access site after {max_attempts} attempts")
+            if not response or response.status_code != 200:
+                logger.error(f"Failed to access site after {max_attempts} attempts with enhanced strategies")
                 return []
             
             # Ensure UTF-8 encoding for Hebrew text
             response.encoding = 'utf-8'
             
+            # Check if we got a Cloudflare challenge page
+            if 'cloudflare' in response.text.lower() and 'challenge' in response.text.lower():
+                logger.warning("Received Cloudflare challenge page - cannot bypass with requests alone")
+                logger.info("Recommend using browser automation or proxy rotation")
+                return []
+            
             soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Log page information for debugging
+            if soup.title:
+                logger.debug(f"Page title: {soup.title.string.strip()}")
+            else:
+                logger.debug("No page title found")
             
             # Find promotional items marked with the specific div
             promo_divs = soup.find_all('div', class_='sp-sale-icon fixed-sale sale-icon')
             
             if not promo_divs:
-                logger.warning("No promotional items found with the target class")
-                # Log HTML structure for debugging
-                logger.debug(f"Page title: {soup.title.string if soup.title else 'No title'}")
-                logger.debug(f"Number of divs found: {len(soup.find_all('div'))}")
+                logger.warning("No promotional items found with the target class 'sp-sale-icon fixed-sale sale-icon'")
                 
                 # Try alternative selectors for promotional items
                 alternative_selectors = [
                     '[class*="sale"]',
-                    '[class*="promotion"]',
+                    '[class*="promotion"]', 
                     '[class*="discount"]',
                     '.special-offer',
-                    '.promo-item'
+                    '.promo-item',
+                    '[data-sale="true"]',
+                    '.on-sale',
+                    '.price-old'
                 ]
                 
                 for selector in alternative_selectors:
@@ -220,6 +409,14 @@ class PromotionParser:
                         logger.info(f"Found {len(alt_items)} items with alternative selector: {selector}")
                         break
                 
+                # If still no promotional items found, check if this is actually a valid product page
+                all_products = soup.select('.product, .item, [class*="product"], [class*="item"]')
+                if all_products:
+                    logger.info(f"Found {len(all_products)} products on page but no promotional markers")
+                    logger.info("Site structure may have changed or no current promotions")
+                else:
+                    logger.warning("No products found on page - possible wrong page or site structure change")
+                
                 return promotions
             
             logger.info(f"Found {len(promo_divs)} promotional items")
@@ -227,25 +424,41 @@ class PromotionParser:
             # For each promotional item, find the parent product container
             for div in promo_divs:
                 try:
-                    # Navigate to parent product container
-                    product_container = div.find_parent(['div', 'article', 'li'], class_=True)
+                    # Navigate to parent product container with multiple strategies
+                    product_container = div.find_parent(['div', 'article', 'li', 'section'], class_=True)
                     
                     if not product_container:
                         # Try to find the product container in the next siblings
                         sibling = div.find_next_sibling()
                         if sibling:
-                            product_container = sibling.find_parent(['div', 'article', 'li'], class_=True)
+                            product_container = sibling.find_parent(['div', 'article', 'li', 'section'], class_=True)
+                    
+                    if not product_container:
+                        # Try to find container in previous siblings
+                        prev_sibling = div.find_previous_sibling()
+                        if prev_sibling:
+                            product_container = prev_sibling.find_parent(['div', 'article', 'li', 'section'], class_=True)
                     
                     if not product_container:
                         logger.warning("Could not find product container for promotional item")
                         continue
                     
-                    # Extract product name
-                    name_selectors = ['.product-name', '.product-title', 'h3', 'h2', '.name', '[class*="title"]', '[class*="product"]']
+                    # Extract product name with comprehensive selectors
+                    name_selectors = [
+                        '.product-name', '.product-title', '.name', '.title',
+                        'h1', 'h2', 'h3', 'h4',
+                        '[class*="product-name"]', '[class*="product-title"]',
+                        '[class*="title"]', '[class*="name"]',
+                        'a[title]', '.product-link'
+                    ]
                     product_name = self._extract_text_by_selectors(product_container, name_selectors)
                     
-                    # Extract price
-                    price_selectors = ['.price', '.product-price', '.amount', '[class*="price"]', '[class*="amount"]', '[class*="cost"]']
+                    # Extract price with comprehensive selectors  
+                    price_selectors = [
+                        '.price', '.product-price', '.amount', '.cost',
+                        '[class*="price"]', '[class*="amount"]', '[class*="cost"]',
+                        '.sale-price', '.original-price', '.old-price'
+                    ]
                     product_price = self._extract_price_by_selectors(product_container, price_selectors)
                     
                     if product_name and product_price is not None:
@@ -259,6 +472,8 @@ class PromotionParser:
                         logger.debug(f"Extracted: {product_name[:30]}... - {product_price}")
                     else:
                         logger.debug(f"Missing data - name: {product_name}, price: {product_price}")
+                        # Log container info for debugging
+                        logger.debug(f"Container classes: {product_container.get('class', [])}")
                     
                 except Exception as e:
                     logger.error(f"Error parsing individual product: {e}")
@@ -268,6 +483,108 @@ class PromotionParser:
             logger.error(f"Network error while fetching {url}: {e}")
         except Exception as e:
             logger.error(f"Unexpected error during parsing: {e}")
+        
+        return promotions
+    
+    def parse_dabach_promotions_with_advanced_session(self, session_info: Dict) -> List[Dict]:
+        """
+        Parse promotions using advanced session with proxy rotation and enhanced bypass
+        
+        Args:
+            session_info: Dictionary containing session, proxy_config, headers, and cookies
+        """
+        url = "https://www.bigdabach.co.il/"
+        promotions = []
+        
+        try:
+            logger.info("Starting advanced bypass parsing with enhanced session")
+            
+            # Use the advanced session from bypass module
+            session = session_info['session']
+            proxy_config = session_info.get('proxy_config')
+            
+            if proxy_config:
+                logger.info(f"Using proxy: {proxy_config['http']}")
+            
+            # Add respectful delay before request
+            self.respectful_delay()
+            
+            # Make request with enhanced session
+            response = session.get(url, timeout=30, allow_redirects=True)
+            
+            if response.status_code == 200:
+                logger.info("Successfully accessed site with advanced bypass techniques!")
+                
+                # Ensure UTF-8 encoding for Hebrew text
+                response.encoding = 'utf-8'
+                
+                # Check for Cloudflare challenges
+                if 'cloudflare' in response.text.lower() and 'challenge' in response.text.lower():
+                    logger.warning("Still detected Cloudflare challenge even with advanced bypass")
+                    logger.info("Consider using browser automation (Selenium/Playwright)")
+                    return []
+                
+                # Parse the content
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Find promotional items marked with the specific div
+                promo_divs = soup.find_all('div', class_='sp-sale-icon fixed-sale sale-icon')
+                
+                if promo_divs:
+                    logger.info(f"Found {len(promo_divs)} promotional items with advanced bypass!")
+                    
+                    # Process each promotional item (reuse existing logic)
+                    for div in promo_divs:
+                        try:
+                            product_container = div.find_parent(['div', 'article', 'li'], class_=True)
+                            
+                            if not product_container:
+                                continue
+                            
+                            name_selectors = [
+                                '.product-name', '.product-title', '.name', '.title',
+                                'h1', 'h2', 'h3', 'h4',
+                                '[class*="product-name"]', '[class*="product-title"]',
+                                '[class*="title"]', '[class*="name"]',
+                                'a[title]', '.product-link'
+                            ]
+                            product_name = self._extract_text_by_selectors(product_container, name_selectors)
+                            
+                            price_selectors = [
+                                '.price', '.product-price', '.amount', '.cost',
+                                '[class*="price"]', '[class*="amount"]', '[class*="cost"]',
+                                '.sale-price', '.original-price', '.old-price'
+                            ]
+                            product_price = self._extract_price_by_selectors(product_container, price_selectors)
+                            
+                            if product_name and product_price is not None:
+                                promotion = {
+                                    'store_name': 'Dabach',
+                                    'product_name': product_name.strip(),
+                                    'price': float(product_price),
+                                    'date': datetime.now()
+                                }
+                                promotions.append(promotion)
+                                logger.debug(f"Extracted: {product_name[:30]}... - {product_price}")
+                        
+                        except Exception as e:
+                            logger.error(f"Error parsing product with advanced bypass: {e}")
+                            continue
+                else:
+                    logger.warning("No promotional items found even with advanced bypass")
+            else:
+                logger.warning(f"Advanced bypass failed with status code: {response.status_code}")
+                
+                # Analyze the response for Cloudflare headers
+                cf_headers = {
+                    'cf-ray': response.headers.get('cf-ray', 'unknown'),
+                    'cf-cache-status': response.headers.get('cf-cache-status', 'unknown'),
+                    'server': response.headers.get('server', 'unknown')
+                }
+                logger.debug(f"Cloudflare headers: {cf_headers}")
+                
+        except Exception as e:
+            logger.error(f"Error during advanced bypass parsing: {e}")
         
         return promotions
     
@@ -436,11 +753,12 @@ class PromotionParser:
         if self.session:
             self.session.close()
 
-def main(use_mock: bool = False):
+def main(use_mock: bool = False, use_advanced_bypass: bool = False):
     """Main function for manual execution
     
     Args:
         use_mock: If True, use mock data for testing
+        use_advanced_bypass: If True, use advanced bypass techniques
     """
     parser = PromotionParser()
     try:
@@ -456,6 +774,37 @@ def main(use_mock: bool = False):
                 'used_mock_data': True,
                 'duration_seconds': 0.1
             }
+        elif use_advanced_bypass:
+            # Try advanced bypass techniques first
+            try:
+                from advanced_cloudflare_bypass import AdvancedCloudflareBypass
+                logger.info("Using advanced Cloudflare bypass techniques")
+                bypass = AdvancedCloudflareBypass()
+                
+                # Create session with advanced bypass
+                session_info = bypass.create_session_with_bypass()
+                
+                # Try parsing with enhanced session
+                promotions = parser.parse_dabach_promotions_with_advanced_session(session_info)
+                
+                if promotions:
+                    stats = parser.save_promotions_to_db(promotions)
+                    result = {
+                        'status': 'success_with_advanced_bypass',
+                        'items_found': len(promotions),
+                        'items_saved': stats['items_saved'],
+                        'items_skipped': stats['items_skipped'],
+                        'used_advanced_bypass': True,
+                        'duration_seconds': 0.1
+                    }
+                else:
+                    # Fallback to standard parsing
+                    logger.info("Advanced bypass failed, using standard fallback")
+                    result = parser.run_parser(use_mock_on_failure=True)
+                    
+            except ImportError:
+                logger.warning("Advanced bypass module not available, using standard methods")
+                result = parser.run_parser(use_mock_on_failure=True)
         else:
             # Use automatic fallback
             result = parser.run_parser(use_mock_on_failure=True)
@@ -469,13 +818,15 @@ def main(use_mock: bool = False):
             print(f"Duration: {result['duration_seconds']:.2f} seconds")
         if result.get('used_mock_data'):
             print("⚠️  Used mock data (real site blocked by Cloudflare protection)")
+        if result.get('used_advanced_bypass'):
+            print("🔧 Used advanced bypass techniques (proxy rotation, enhanced headers)")
         if result.get('errors'):
             print(f"Errors: {len(result['errors'])}")
             for error in result['errors']:
                 print(f"  - {error}")
         
         # Consider success_with_mock as success for demo purposes
-        success_statuses = ['success', 'success_with_mock']
+        success_statuses = ['success', 'success_with_mock', 'success_with_advanced_bypass']
         return result['status'] in success_statuses
         
     finally:
@@ -484,5 +835,6 @@ def main(use_mock: bool = False):
 if __name__ == "__main__":
     import sys
     use_mock = '--mock' in sys.argv
-    success = main(use_mock=use_mock)
+    use_advanced = '--advanced' in sys.argv
+    success = main(use_mock=use_mock, use_advanced_bypass=use_advanced)
     exit(0 if success else 1)
