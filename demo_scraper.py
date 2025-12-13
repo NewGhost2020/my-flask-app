@@ -1,14 +1,18 @@
 """
 Demo script to show scraper functionality
 Uses sample data instead of actual web scraping
+Works with SQLAlchemy ORM models
 """
 
 from datetime import datetime
 from bigdabach_scraper import (
     init_database,
     save_to_database,
-    STORE_NAME
+    STORE_NAME,
+    db_manager
 )
+from models import Promotion
+
 
 def demo_scraper():
     """Demo the scraper with sample promotional data"""
@@ -75,24 +79,22 @@ def demo_scraper():
     print(f"Errors: {errors}")
     print("="*60)
     
-    # Show database contents
-    import sqlite3
-    conn = sqlite3.connect('promotions.db')
-    cursor = conn.cursor()
+    # Show database contents using SQLAlchemy
+    session = db_manager.get_session()
     
     print("\nDatabase Contents:")
     print("-" * 60)
-    cursor.execute("SELECT id, product_name, price, date FROM promotions ORDER BY id DESC LIMIT 5")
-    for row in cursor.fetchall():
-        print(f"ID: {row[0]} | {row[1]} | ₪{row[2]} | {row[3]}")
+    recent_items = session.query(Promotion).order_by(Promotion.id.desc()).limit(5).all()
+    for promo in recent_items:
+        print(f"ID: {promo.id} | {promo.product_name} | ₪{promo.price} | {promo.date}")
     
-    cursor.execute("SELECT COUNT(*) FROM promotions")
-    total = cursor.fetchone()[0]
+    total = session.query(Promotion).count()
     print("-" * 60)
     print(f"Total items in database: {total}")
     print("="*60)
     
-    conn.close()
+    session.close()
+
 
 if __name__ == '__main__':
     demo_scraper()
