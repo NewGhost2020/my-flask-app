@@ -121,12 +121,18 @@ def scrape_bigdabach(driver, data):
         
         # Find all promotional items with the target class
         # Looking for elements with class containing 'sp-sale-icon'
-        promo_elements = driver.get_elements_or_none_by_selector('.sp-sale-icon.fixed-sale.sale-icon')
+        promo_elements = None
+        try:
+            promo_elements = driver.select_all('.sp-sale-icon.fixed-sale.sale-icon', wait=5)
+        except Exception as e:
+            logger.warning(f"No promotional elements found with class 'sp-sale-icon fixed-sale sale-icon': {e}")
         
         if not promo_elements:
-            logger.warning("No promotional elements found with class 'sp-sale-icon fixed-sale sale-icon'")
             # Try alternative selectors
-            promo_elements = driver.get_elements_or_none_by_selector('.sp-sale-icon')
+            try:
+                promo_elements = driver.select_all('.sp-sale-icon', wait=5)
+            except Exception as e:
+                logger.warning(f"No promotional elements found with class 'sp-sale-icon': {e}")
         
         if not promo_elements:
             logger.warning("No promotional items found on the page")
@@ -143,30 +149,42 @@ def scrape_bigdabach(driver, data):
                 # The sale icon is usually inside a product card/container
                 product_container = promo_element.parent
                 
+                # Helper function to safely select an element
+                def safe_select(container, selector):
+                    try:
+                        return container.select(selector, wait=1)
+                    except:
+                        return None
+                
                 # Navigate up to find the full product container
                 # Try to find parent elements that might contain product info
+                product_name_elem = None
+                price_elem = None
+                
                 for _ in range(5):  # Try up to 5 levels up
                     if product_container is None:
                         break
                     
                     # Look for product name - common selectors
-                    product_name_elem = (
-                        product_container.get_element_or_none_by_selector('.product-title') or
-                        product_container.get_element_or_none_by_selector('.product-name') or
-                        product_container.get_element_or_none_by_selector('h2') or
-                        product_container.get_element_or_none_by_selector('h3') or
-                        product_container.get_element_or_none_by_selector('.name') or
-                        product_container.get_element_or_none_by_selector('a[href*="product"]')
-                    )
+                    if not product_name_elem:
+                        product_name_elem = (
+                            safe_select(product_container, '.product-title') or
+                            safe_select(product_container, '.product-name') or
+                            safe_select(product_container, 'h2') or
+                            safe_select(product_container, 'h3') or
+                            safe_select(product_container, '.name') or
+                            safe_select(product_container, 'a[href*="product"]')
+                        )
                     
                     # Look for price - common selectors
-                    price_elem = (
-                        product_container.get_element_or_none_by_selector('.price') or
-                        product_container.get_element_or_none_by_selector('.sale-price') or
-                        product_container.get_element_or_none_by_selector('.special-price') or
-                        product_container.get_element_or_none_by_selector('.price-new') or
-                        product_container.get_element_or_none_by_selector('[class*="price"]')
-                    )
+                    if not price_elem:
+                        price_elem = (
+                            safe_select(product_container, '.price') or
+                            safe_select(product_container, '.sale-price') or
+                            safe_select(product_container, '.special-price') or
+                            safe_select(product_container, '.price-new') or
+                            safe_select(product_container, '[class*="price"]')
+                        )
                     
                     if product_name_elem and price_elem:
                         break
