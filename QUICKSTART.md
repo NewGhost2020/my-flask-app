@@ -1,146 +1,249 @@
 # Quick Start Guide - Bigdabach Scraper
 
+Get up and running with the Bigdabach.co.il scraper in minutes!
+
+## Prerequisites
+
+- Python 3.8 or higher
+- pip package manager
+- Internet connection (for live scraping)
+
 ## Installation
 
+### Step 1: Install Dependencies
+
 ```bash
-# Install dependencies
 pip install -r requirements.txt
+```
+
+Or install individually:
+```bash
+pip install Flask pandas openpyxl botasaurus sqlalchemy
+```
+
+### Step 2: Verify Installation
+
+Run the test suite to ensure everything is working:
+```bash
+python test_scraper.py
+```
+
+You should see:
+```
+============================================================
+All Tests Passed! ✓
+============================================================
 ```
 
 ## Usage
 
-### Option 1: Run Live Scraper
-Scrape actual promotional items from bigdabach.co.il:
+### Option 1: Demo Mode (Recommended First Run)
 
-```bash
-python bigdabach_scraper.py
-```
-
-**Output:**
-- Connects to https://www.bigdabach.co.il/
-- Finds promotional items (with `sp-sale-icon` class)
-- Extracts product names and prices
-- Saves to `promotions.db` SQLite database
-- Displays summary of items found, saved, and skipped
-
-### Option 2: Run Demo
-See how the scraper works with sample data:
+Test the scraper with sample data without hitting the live website:
 
 ```bash
 python demo_scraper.py
 ```
 
-**Output:**
-- Creates sample promotional items
-- Saves to database
+**What it does:**
+- Creates a SQLite database (`promotions.db`)
+- Saves 5 sample Hebrew products
 - Shows database contents
-- Perfect for testing without actual web scraping
+- Demonstrates duplicate detection
 
-### Option 3: Run Tests
-Verify all functionality works correctly:
-
-```bash
-python test_scraper.py
+**Expected output:**
+```
+============================================================
+Bigdabach Scraper Demo
+============================================================
+Items found: 5
+Items saved: 5
+Items skipped (duplicates): 0
+Errors: 0
+============================================================
 ```
 
-**Tests:**
-- Database initialization ✓
-- Save operations ✓
-- Duplicate detection ✓
-- Hebrew text handling ✓
-- Price parsing ✓
+### Option 2: Live Scraping
 
-## View Results
+Scrape actual promotional products from bigdabach.co.il:
 
-### Command Line
 ```bash
-# View all promotions
-sqlite3 promotions.db "SELECT * FROM promotions;"
-
-# Count total items
-sqlite3 promotions.db "SELECT COUNT(*) FROM promotions;"
-
-# View recent items
-sqlite3 promotions.db "SELECT product_name, price, date FROM promotions ORDER BY date DESC LIMIT 10;"
-
-# Find items by price range
-sqlite3 promotions.db "SELECT * FROM promotions WHERE price BETWEEN 100 AND 500;"
+python bigdabach_scraper.py
 ```
 
-### Python Script
+**What it does:**
+- Connects to https://www.bigdabach.co.il/
+- Finds items with sale icons
+- Extracts product names and prices
+- Saves to database with timestamp
+- Skips duplicates automatically
+
+**Expected output:**
+```
+============================================================
+SCRAPING SUMMARY
+============================================================
+Items found: 15
+Items saved: 12
+Items skipped (duplicates): 3
+Errors: 0
+============================================================
+```
+
+## Exploring the Database
+
+### Using Python
+
 ```python
-import sqlite3
+from models import DatabaseManager, Promotion
 
-conn = sqlite3.connect('promotions.db')
-cursor = conn.cursor()
+# Connect to database
+db_manager = DatabaseManager('promotions.db')
+session = db_manager.get_session()
 
-cursor.execute("SELECT * FROM promotions")
-for row in cursor.fetchall():
-    print(row)
+# Get all promotions
+promotions = session.query(Promotion).all()
+for p in promotions:
+    print(f"{p.product_name}: ₪{p.price}")
 
-conn.close()
+# Close session
+session.close()
 ```
 
-## Database Schema
+### Using SQLite Command Line
 
+```bash
+sqlite3 promotions.db
+```
+
+Then run SQL queries:
 ```sql
-CREATE TABLE promotions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    store_name TEXT NOT NULL,          -- Always "Dabach"
-    product_name TEXT NOT NULL,        -- Hebrew/English product name
-    price REAL NOT NULL,               -- Price in ILS (₪)
-    date DATETIME NOT NULL,            -- When scraped
-    UNIQUE(store_name, product_name, date)
-);
+-- View all promotions
+SELECT * FROM promotions;
+
+-- Count total items
+SELECT COUNT(*) FROM promotions;
+
+-- Get cheapest items
+SELECT product_name, price FROM promotions ORDER BY price LIMIT 10;
+
+-- Get most recent items
+SELECT product_name, date FROM promotions ORDER BY date DESC LIMIT 10;
 ```
 
-## Features
+Exit with `.quit`
 
-✅ **Botasaurus Framework** - Modern web scraping with JavaScript rendering  
-✅ **Hebrew Support** - Full UTF-8 encoding for Hebrew text  
-✅ **Duplicate Detection** - Automatic skipping of existing items  
-✅ **Error Handling** - Comprehensive logging and error recovery  
-✅ **SQLite Database** - Lightweight, no server needed  
-✅ **Clean API** - Simple, maintainable code  
+## Project Files
+
+| File | Purpose |
+|------|---------|
+| `models.py` | SQLAlchemy database models |
+| `bigdabach_scraper.py` | Main scraper with Botasaurus |
+| `demo_scraper.py` | Demo with sample data |
+| `test_scraper.py` | Unit tests |
+| `requirements.txt` | Python dependencies |
+| `promotions.db` | SQLite database (auto-created) |
+
+## Common Commands
+
+```bash
+# Run tests
+python test_scraper.py
+
+# Run demo (offline)
+python demo_scraper.py
+
+# Scrape live website
+python bigdabach_scraper.py
+
+# Clean database (delete and start fresh)
+rm promotions.db
+python demo_scraper.py
+
+# Check syntax
+python -m py_compile bigdabach_scraper.py
+```
+
+## Understanding the Output
+
+### Log Levels
+
+- **INFO**: Normal operation (green)
+- **WARNING**: Non-critical issues (yellow)
+- **ERROR**: Problems that need attention (red)
+
+### Common Messages
+
+```
+✓ "Database initialized successfully" - Database is ready
+✓ "Found X promotional elements" - Items detected on page
+✓ "Saved: Product Name - ₪XX.XX" - Item saved to database
+⚠ "Skipping duplicate: Product Name" - Already in database
+❌ "Error saving item" - Problem with specific item
+```
 
 ## Troubleshooting
 
-### No items found
-- Check if website structure has changed
-- Verify CSS selectors in `bigdabach_scraper.py`
-- Check logs for specific errors
+### No module named 'sqlalchemy'
+```bash
+pip install sqlalchemy --break-system-packages
+```
 
-### Database locked
-- Close any open SQLite connections
-- Delete `promotions.db` and run again
+### Database is locked
+Close any programs viewing the database file and try again.
 
-### Hebrew text displays incorrectly
-- Ensure terminal/viewer supports UTF-8
-- Database correctly stores UTF-8 by default
+### No promotional items found
+- Website may be down
+- Check internet connection
+- Website structure may have changed (check CSS selector)
 
 ### Import errors
+Ensure you're in the project directory:
 ```bash
-# Reinstall dependencies
-pip install -r requirements.txt --force-reinstall
+cd /path/to/project
+python demo_scraper.py
 ```
 
 ## Next Steps
 
-- Schedule periodic runs with cron
-- Add email notifications for new promotions
-- Extend to scrape other stores
-- Build web UI to view promotions
+1. ✅ Run demo to verify setup
+2. ✅ Run live scraper to get real data
+3. ✅ Query database to explore results
+4. 📚 Read [README_SCRAPER.md](README_SCRAPER.md) for detailed documentation
+5. 🔧 Customize for your needs
 
-## Documentation
+## Example Integration
 
-- **README_SCRAPER.md** - Detailed documentation
-- **IMPLEMENTATION_CHECKLIST.md** - Complete implementation details
-- **Source Code** - All functions have docstrings
+Use the scraper in your own Python code:
 
-## Support
+```python
+from bigdabach_scraper import run_scraper
 
-For issues or questions, check:
-1. Error logs in console output
-2. Documentation files
-3. Source code comments
-4. Botasaurus documentation: https://github.com/omkarcloud/botasaurus
+# Run the scraper
+result = run_scraper()
+
+# Check results
+if result['status'] == 'completed':
+    print(f"Success! Saved {result['items_saved']} items")
+else:
+    print(f"Error: {result.get('error_message', 'Unknown error')}")
+```
+
+## Need Help?
+
+- Check [README_SCRAPER.md](README_SCRAPER.md) for detailed documentation
+- Review [test_scraper.py](test_scraper.py) for usage examples
+- Look at [demo_scraper.py](demo_scraper.py) for sample implementation
+
+## Features at a Glance
+
+✅ **SQLAlchemy ORM** - Modern database handling  
+✅ **Botasaurus** - Reliable web scraping  
+✅ **Hebrew Support** - Full UTF-8 encoding  
+✅ **Duplicate Detection** - Automatic via unique constraints  
+✅ **Error Handling** - Comprehensive logging  
+✅ **Easy Testing** - Demo mode with sample data  
+
+---
+
+**Happy Scraping! 🚀**

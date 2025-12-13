@@ -1,15 +1,18 @@
 """
 Bigdabach.co.il Web Scraper
 Extracts promotional products using Botasaurus framework
+Uses SQLAlchemy ORM for database operations
 """
 
-import sqlite3
 import logging
 import time
 import re
 from datetime import datetime
 from typing import List, Dict
 from botasaurus.browser import browser, Wait
+from sqlalchemy.exc import IntegrityError
+
+from models import DatabaseManager, Promotion
 
 # Configure logging
 logging.basicConfig(
@@ -18,56 +21,48 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Database configuration
+# Configuration
 DB_NAME = 'promotions.db'
 STORE_NAME = 'Dabach'
 TARGET_URL = 'https://www.bigdabach.co.il/'
 
+# Initialize database manager
+db_manager = DatabaseManager(DB_NAME)
+
 
 def init_database():
     """Initialize SQLite database and create promotions table if not exists"""
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS promotions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            store_name TEXT NOT NULL,
-            product_name TEXT NOT NULL,
-            price REAL NOT NULL,
-            date DATETIME NOT NULL,
-            UNIQUE(store_name, product_name, date)
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
+    db_manager.init_database()
     logger.info(f"Database '{DB_NAME}' initialized successfully")
 
 
 def check_duplicate(store_name: str, product_name: str, date: str) -> bool:
     """Check if product already exists in database"""
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        SELECT COUNT(*) FROM promotions 
-        WHERE store_name = ? AND product_name = ? AND date = ?
-    ''', (store_name, product_name, date))
-    
-    count = cursor.fetchone()[0]
-    conn.close()
-    
-    return count > 0
+    session = db_manager.get_session()
+    try:
+        # Parse date string to datetime if needed
+        if isinstance(date, str):
+            date_obj = datetime.strptime(date, '%Y-%m-%d %H:%M:%S')
+        else:
+            date_obj = date
+        
+        count = session.query(Promotion).filter_by(
+            store_name=store_name,
+            product_name=product_name,
+            date=date_obj
+        ).count()
+        
+        return count > 0
+    finally:
+        session.close()
 
 
 def save_to_database(items: List[Dict]) -> tuple:
     """
-    Save promotional items to database
+    Save promotional items to database using SQLAlchemy
     Returns: (saved_count, skipped_count, error_count)
     """
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+    session = db_manager.get_session()
     
     saved_count = 0
     skipped_count = 0
@@ -75,27 +70,37 @@ def save_to_database(items: List[Dict]) -> tuple:
     
     for item in items:
         try:
-            # Check for duplicates
-            if check_duplicate(item['store_name'], item['product_name'], item['date']):
-                logger.info(f"Skipping duplicate: {item['product_name']}")
-                skipped_count += 1
-                continue
+            # Parse date string to datetime object
+            date_obj = item['date']
+            if isinstance(date_obj, str):
+                date_obj = datetime.strptime(date_obj, '%Y-%m-%d %H:%M:%S')
             
-            cursor.execute('''
-                INSERT INTO promotions (store_name, product_name, price, date)
-                VALUES (?, ?, ?, ?)
-            ''', (item['store_name'], item['product_name'], item['price'], item['date']))
+            # Create new Promotion instance
+            promotion = Promotion(
+                store_name=item['store_name'],
+                product_name=item['product_name'],
+                price=item['price'],
+                date=date_obj
+            )
+            
+            session.add(promotion)
+            session.commit()
             
             saved_count += 1
             logger.info(f"Saved: {item['product_name']} - ₪{item['price']}")
             
+        except IntegrityError:
+            # Duplicate entry
+            session.rollback()
+            logger.info(f"Skipping duplicate: {item['product_name']}")
+            skipped_count += 1
+            
         except Exception as e:
+            session.rollback()
             logger.error(f"Error saving item {item.get('product_name', 'unknown')}: {str(e)}")
             error_count += 1
     
-    conn.commit()
-    conn.close()
-    
+    session.close()
     return saved_count, skipped_count, error_count
 
 
