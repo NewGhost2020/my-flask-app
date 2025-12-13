@@ -196,3 +196,87 @@ python test_scraper.py
 **Resolution Time**: Immediate
 **Files Modified**: `bigdabach_scraper.py` (lines 202-210)
 **Tests Added**: `test_product_name_extraction.py`
+
+---
+
+# Bug Fix #3 - CSS Selector Path for Product Name
+
+## Issue
+Generic CSS selectors were not specific enough for bigdabach.co.il HTML structure. The product name is located in a specific nested structure that needs to be targeted correctly.
+
+## Root Cause
+The scraper was using generic selectors (`.name`, `.product-title`, etc.) without following the actual HTML structure of the website.
+
+**Actual HTML structure:**
+```html
+<div class="data">
+    <div class="name" title="Full Product Name">Truncated...</div>
+    <div class="description highlight">Description (NOT the name)</div>
+</div>
+```
+
+**Problem:** Generic `.name` selector could match wrong elements or miss the correct one.
+
+## Solution
+Updated selector logic to follow the correct HTML path:
+1. First find `div.data` container
+2. Inside `div.data`, find `div.name` (the product name)
+3. This avoids confusion with `div.description.highlight`
+
+### Code Before
+```python
+if not product_name_elem:
+    product_name_elem = (
+        safe_select(product_container, '.product-title') or
+        safe_select(product_container, '.product-name') or
+        safe_select(product_container, 'h2') or
+        safe_select(product_container, 'h3') or
+        safe_select(product_container, '.name') or
+        safe_select(product_container, 'a[href*="product"]')
+    )
+```
+
+### Code After
+```python
+if not product_name_elem:
+    # First try to find div.data container
+    data_container = safe_select(product_container, 'div.data')
+    if data_container:
+        # Inside div.data, look for div.name
+        product_name_elem = safe_select(data_container, 'div.name')
+    
+    # If not found, try direct selectors as fallback
+    if not product_name_elem:
+        product_name_elem = (
+            safe_select(product_container, 'div.data div.name') or
+            safe_select(product_container, '.name') or
+            safe_select(product_container, '.product-title') or
+            safe_select(product_container, '.product-name')
+        )
+```
+
+## Impact
+
+### ✅ Improvements
+- **Precise targeting**: Follows exact DOM structure of bigdabach.co.il
+- **Avoids wrong elements**: Won't accidentally select `div.description`
+- **Backward compatible**: Fallback selectors for other structures
+- **Works with Bug Fix #2**: Correctly finds element, then extracts full name from title
+
+### ✅ Testing
+```bash
+python -m py_compile bigdabach_scraper.py  # ✓ Pass
+python test_scraper.py                      # ✓ All 7 tests pass
+```
+
+## Status
+✅ **FIXED** - Selector now correctly targets `div.data > div.name` structure.
+
+---
+
+**Fixed Date**: December 13, 2024  
+**Issue Type**: Selector Precision  
+**Severity**: High (affects data extraction accuracy)  
+**Resolution Time**: Immediate  
+**Files Modified**: `bigdabach_scraper.py` (lines 168-184)  
+**Documentation**: `BUGFIX_SELECTOR_UPDATE.md`

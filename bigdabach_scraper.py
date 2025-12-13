@@ -165,16 +165,23 @@ def scrape_bigdabach(driver, data):
                     if product_container is None:
                         break
                     
-                    # Look for product name - common selectors
+                    # Look for product name in the correct structure:
+                    # div.data -> div.name (not div.description)
                     if not product_name_elem:
-                        product_name_elem = (
-                            safe_select(product_container, '.product-title') or
-                            safe_select(product_container, '.product-name') or
-                            safe_select(product_container, 'h2') or
-                            safe_select(product_container, 'h3') or
-                            safe_select(product_container, '.name') or
-                            safe_select(product_container, 'a[href*="product"]')
-                        )
+                        # First try to find div.data container
+                        data_container = safe_select(product_container, 'div.data')
+                        if data_container:
+                            # Inside div.data, look for div.name
+                            product_name_elem = safe_select(data_container, 'div.name')
+                        
+                        # If not found, try direct selectors as fallback
+                        if not product_name_elem:
+                            product_name_elem = (
+                                safe_select(product_container, 'div.data div.name') or
+                                safe_select(product_container, '.name') or
+                                safe_select(product_container, '.product-title') or
+                                safe_select(product_container, '.product-name')
+                            )
                     
                     # Look for price - common selectors
                     if not price_elem:
