@@ -6,7 +6,44 @@ Successfully implemented a complete Botasaurus-based web scraper for bigdabach.c
 
 ## What Was Implemented
 
-### 1. Database Layer (models.py)
+### 1. Telegram Bot (telegram_bot.py) 🆕
+
+Создан полнофункциональный телеграм бот на aiogram 3.x для управления скрапером:
+
+**Основные возможности:**
+- 🔄 Запуск скрапинга через команду `/scrape`
+- 📊 Просмотр статистики базы данных `/stats`
+- 🆕 Отображение последних товаров `/latest`
+- 🔍 Поиск товаров по названию `/search [название]`
+- 💰 Фильтр дешевых товаров `/cheap` (< 1000 ₪)
+- 💎 Фильтр дорогих товаров `/expensive` (> 3000 ₪)
+- ⌨️ Интерактивные inline-кнопки для удобного управления
+- 🌐 Полная поддержка Hebrew (иврит)
+
+**Команды:**
+- `/start` - Главное меню с интерактивными кнопками
+- `/help` - Подробная справка по командам
+- `/scrape` - Запуск веб-скрапинга
+- `/stats` - Статистика (всего, за сегодня, за неделю, средняя цена)
+- `/latest` - 10 последних добавленных товаров
+- `/search [text]` - Поиск товаров по названию
+- `/cheap` - Товары дешевле 1000 ₪
+- `/expensive` - Товары дороже 3000 ₪
+
+**Технические особенности:**
+- Асинхронная архитектура (aiogram 3.x)
+- Интеграция с SQLAlchemy через `db_manager`
+- FSM (Finite State Machine) для диалогов с пользователем
+- Callback handlers для inline-кнопок
+- Логирование всех действий
+- Обработка ошибок и исключений
+
+**Документация:**
+- `README_TELEGRAM_BOT.md` - Полное руководство
+- `TELEGRAM_BOT_QUICKSTART.md` - Быстрый старт (5 минут)
+- `TELEGRAM_BOT_EXAMPLES.md` - Практические примеры использования
+
+### 2. Database Layer (models.py)
 
 Created SQLAlchemy ORM models for clean, maintainable database operations:
 
@@ -170,13 +207,19 @@ Total items in database: 5
 ## Files Modified/Created
 
 ### Created:
-- `models.py` - SQLAlchemy ORM models (new)
+- `models.py` - SQLAlchemy ORM models
+- `telegram_bot.py` - Telegram bot на aiogram 3.x 🆕
+- `README_TELEGRAM_BOT.md` - Полная документация бота 🆕
+- `TELEGRAM_BOT_QUICKSTART.md` - Быстрый старт для бота 🆕
+- `TELEGRAM_BOT_EXAMPLES.md` - Примеры использования бота 🆕
+- `IMPLEMENTATION_SUMMARY.md` - Сводка реализации
+- `ACCEPTANCE_CHECKLIST.md` - Чек-лист критериев приемки
 
 ### Modified:
 - `bigdabach_scraper.py` - Refactored to use SQLAlchemy
 - `demo_scraper.py` - Updated for SQLAlchemy
 - `test_scraper.py` - Enhanced with ORM tests
-- `requirements.txt` - Added sqlalchemy
+- `requirements.txt` - Added sqlalchemy and aiogram 🆕
 - `README_SCRAPER.md` - Updated documentation
 - `QUICKSTART.md` - Updated quick start guide
 
@@ -217,6 +260,14 @@ python bigdabach_scraper.py
 ### Run Tests
 ```bash
 python test_scraper.py
+```
+
+### Run Telegram Bot 🆕
+```bash
+# 1. Получите токен от @BotFather
+# 2. Вставьте токен в telegram_bot.py
+# 3. Запустите бота
+python telegram_bot.py
 ```
 
 ### Query Database
@@ -264,16 +315,49 @@ Possible additions (not required for this ticket):
 - Multi-page scraping support
 - Additional store integrations
 
+## Telegram Bot Features 🆕
+
+### Основной функционал:
+1. **Управление скрапингом** - запуск из Telegram
+2. **Просмотр данных** - статистика, последние товары, поиск
+3. **Фильтрация** - по цене (дешевые/дорогие)
+4. **Интерактивность** - inline-кнопки для удобства
+5. **Мультиязычность** - команды на английском, результаты на иврите
+
+### Команды бота:
+- `/start` - Главное меню
+- `/scrape` - Запуск скрапинга
+- `/stats` - Статистика БД
+- `/latest` - Последние 10 товаров
+- `/search` - Поиск товара
+- `/cheap` - Дешевые товары (< 1000 ₪)
+- `/expensive` - Дорогие товары (> 3000 ₪)
+- `/help` - Справка
+
+### Примеры использования:
+```
+Пользователь → /scrape
+Бот → ✅ Сохранено: 15 товаров
+
+Пользователь → /search MacBook
+Бот → 🔍 Найдено 3 товара:
+      1. MacBook Air M2 - ₪5499.00
+      2. MacBook Pro 14" - ₪8999.00
+      ...
+```
+
 ## Conclusion
 
 The bigdabach parser is fully functional and production-ready with:
 - Modern SQLAlchemy ORM architecture
 - Reliable Botasaurus web scraping
+- **Telegram Bot integration (aiogram 3.x)** 🆕
 - Comprehensive error handling
 - Full Hebrew text support
 - Automatic duplicate detection
 - Extensive documentation
 - Working test suite
 - Easy-to-use demo mode
+- **Interactive Telegram interface** 🆕
 
 All acceptance criteria have been met and the implementation is ready for deployment.
