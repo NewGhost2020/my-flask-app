@@ -200,9 +200,14 @@ def scrape_bigdabach(driver, data):
                     continue
                 
                 # Extract product name
-                product_name = product_name_elem.text.strip()
+                # First try title attribute (full name), then text (may be truncated)
+                product_name = product_name_elem.get_attribute('title')
+                if not product_name or product_name.strip() == '':
+                    product_name = product_name_elem.text.strip()
                 if not product_name:
-                    product_name = product_name_elem.get_attribute('title') or 'Unknown Product'
+                    product_name = 'Unknown Product'
+                else:
+                    product_name = product_name.strip()
                 
                 # Extract price
                 price_text = price_elem.text.strip()
